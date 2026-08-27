@@ -1,7 +1,16 @@
 import { Hono } from "hono";
 import { createRequestHandler } from "react-router";
 
-const app = new Hono();
+declare module "react-router" {
+	interface AppLoadContext {
+		cloudflare: {
+			env: Env;
+			ctx: ExecutionContext;
+		};
+	}
+}
+
+const app = new Hono<{ Bindings: Env }>();
 
 // Add more routes here
 
@@ -12,7 +21,7 @@ app.get("*", (c) => {
 	);
 
 	return requestHandler(c.req.raw, {
-		cloudflare: { env: c.env, ctx: c.executionCtx },
+		cloudflare: { env: c.env, ctx: c.executionCtx as ExecutionContext },
 	});
 });
 
