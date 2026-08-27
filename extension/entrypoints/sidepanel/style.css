@@ -1,0 +1,6 @@
+@import "tailwindcss" source(".");
+
+body {
+	margin: 0;
+	color-scheme: light;
+}
