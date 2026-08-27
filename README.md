@@ -39,6 +39,100 @@ A perfect starting point for building interactive, styled, and edge-deployed SPA
   - Vite plugin auto-bundles frontend and backend together
   - Deployed worldwide on Cloudflare’s edge network
 
+## Procurement early-access backend
+
+Backend for the `/procurement` landing page's early-access form. This is intake and lead-management infrastructure only — no purchasing automation, browser extension, supplier integrations, or AI features are implemented here.
+
+**Endpoints**
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| POST | `/api/procurement-early-access` | none (public) | Submit the early-access form |
+| GET | `/api/admin/procurement-early-access` | Bearer token | List leads (`?status=`, `?limit=`, `?cursor=`) |
+| GET | `/api/admin/procurement-early-access/export.csv` | Bearer token | CSV export of all leads |
+| PATCH | `/api/admin/procurement-early-access/:id` | Bearer token | Update a lead's status |
+
+All admin responses are sent with `Cache-Control: no-store` and never include `ipHash`/`userAgentHash`.
+
+**Run locally**
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars   # then fill in real random values
+npm run dev
+```
+
+**Configure `.dev.vars`**
+
+```text
+ADMIN_API_TOKEN=replace-with-a-long-random-token   # openssl rand -hex 32
+LEAD_HASH_SALT=replace-with-a-long-random-secret   # openssl rand -hex 32
+```
+
+Without `.dev.vars`, the public form endpoint still works (falling back to an insecure dev-only hash salt, logged loudly as a warning), but every `/api/admin/*` route returns `503` until `ADMIN_API_TOKEN` is set — there is no "open" fallback mode.
+
+**D1 migration (optional — falls back to in-memory without it)**
+
+The project runs without a database: with no `DB` binding, leads are kept in an **in-memory, per-isolate store that is lost on every restart/redeploy**. This is fine for local development only. To persist leads durably:
+
+```bash
+npx wrangler d1 create procurement-leads
+# paste the returned database_id into the commented [[d1_databases]] block in wrangler.jsonc, then uncomment it
+
+npx wrangler d1 execute procurement-leads --local  --file=migrations/0001_procurement_early_access.sql
+npx wrangler d1 execute procurement-leads --remote --file=migrations/0001_procurement_early_access.sql
+```
+
+Once `env.DB` is bound, the D1-backed repository is used automatically — no code changes required.
+
+**Test the public form API**
+
+```bash
+curl -X POST http://localhost:5173/api/procurement-early-access \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workEmail": "name@company.example",
+    "fullName": "Example Name",
+    "companyName": "Example Company",
+    "jobTitle": "Procurement Director",
+    "companySize": "201-1000",
+    "biggestChallenge": "Low contract utilization",
+    "primaryCategories": ["Facilities and office supplies"],
+    "purchasingChannels": ["ERP / P2P system"],
+    "pilotInterest": true
+  }'
+```
+
+A second submission with the same (case-insensitive) email returns `200` with a neutral "already on the list" message instead of creating a duplicate row.
+
+**Use the admin endpoints**
+
+```bash
+curl http://localhost:5173/api/admin/procurement-early-access \
+  -H "Authorization: Bearer YOUR_ADMIN_API_TOKEN"
+
+curl http://localhost:5173/api/admin/procurement-early-access/export.csv \
+  -H "Authorization: Bearer YOUR_ADMIN_API_TOKEN" -o leads.csv
+
+curl -X PATCH http://localhost:5173/api/admin/procurement-early-access/LEAD_ID \
+  -H "Authorization: Bearer YOUR_ADMIN_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "qualified"}'
+```
+
+**Run tests**
+
+```bash
+npm test
+```
+
+**MVP limitations (deliberate, documented tradeoffs)**
+
+- **Admin auth** is a single shared bearer token with no per-user identity, roles, or audit trail — an internal-operator guard appropriate for one or two trusted operators at this stage, not multi-user production administration. Replace with Cloudflare Access, SSO, or real user auth before that changes.
+- **Rate limiting** is a best-effort, single-isolate in-memory counter (~5 submissions/hour/fingerprint, tunable via `LEAD_RATE_LIMIT_MAX_PER_HOUR`). It is not durable or distributed — a determined abuser spread across many Cloudflare colos/isolates can exceed it. Back this with a Durable Object or atomic KV/D1 counter for real abuse protection.
+- **In-memory repository** (used whenever `DB` isn't bound) loses all data on every Worker restart. Never rely on it beyond local development.
+- **Early-access intake must never be used to collect confidential procurement, supplier, payment, contract, or account data.** The form and its privacy microcopy say so explicitly; nothing server-side redacts free-text fields beyond basic sanitization, so this is a policy boundary, not a technical one.
+
 ## Resources
 
 - 🧩 [Hono on Cloudflare Workers](https://hono.dev/docs/getting-started/cloudflare-workers)

@@ -10,8 +10,11 @@ import {
 	PURCHASING_CHANNEL_OPTIONS,
 	validateProcurementEarlyAccessInput,
 } from "~/lib/validation/procurementEarlyAccess";
-import type { ProcurementEarlyAccessFieldErrors } from "~/types/procurement";
-import type { ProcurementEarlyAccessResponse } from "~/types/procurement";
+import type {
+	ProcurementApiResponse,
+	ProcurementEarlyAccessFieldErrors,
+	ProcurementSubmitSuccessData,
+} from "~/types/procurement";
 
 type FormValues = {
 	workEmail: string;
@@ -65,7 +68,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 
 		const validation = validateProcurementEarlyAccessInput(values);
 		if (!validation.success) {
-			setFieldErrors(validation.fieldErrors);
+			setFieldErrors(validation.fields);
 			setFormError("Please correct the highlighted fields.");
 			return;
 		}
@@ -79,11 +82,11 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(validation.data),
 			});
-			const payload = (await response.json()) as ProcurementEarlyAccessResponse;
+			const payload = (await response.json()) as ProcurementApiResponse<ProcurementSubmitSuccessData>;
 
-			if (!response.ok || !payload.success) {
-				const errorPayload = !payload.success ? payload.error : undefined;
-				setFieldErrors(errorPayload?.fieldErrors ?? {});
+			if (!response.ok || !payload.ok) {
+				const errorPayload = !payload.ok ? payload.error : undefined;
+				setFieldErrors(errorPayload?.fields ?? {});
 				setFormError(
 					errorPayload?.message ??
 						"Something went wrong submitting the form. Please try again.",
@@ -115,7 +118,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 			) : null}
 
 			<div className="grid gap-5 sm:grid-cols-2">
-				<FormField id="fullName" label="Full name" required error={fieldErrors.fullName}>
+				<FormField id="fullName" label="Full name" required error={fieldErrors.fullName?.[0]}>
 					<input
 						id="fullName"
 						name="fullName"
@@ -132,7 +135,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					/>
 				</FormField>
 
-				<FormField id="workEmail" label="Work email" required error={fieldErrors.workEmail}>
+				<FormField id="workEmail" label="Work email" required error={fieldErrors.workEmail?.[0]}>
 					<input
 						id="workEmail"
 						name="workEmail"
@@ -149,13 +152,13 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					/>
 				</FormField>
 
-				<FormField id="companyName" label="Company name" required error={fieldErrors.companyName}>
+				<FormField id="companyName" label="Company name" required error={fieldErrors.companyName?.[0]}>
 					<input
 						id="companyName"
 						name="companyName"
 						type="text"
 						autoComplete="organization"
-						maxLength={150}
+						maxLength={160}
 						required
 						aria-required="true"
 						aria-invalid={Boolean(fieldErrors.companyName)}
@@ -166,13 +169,13 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					/>
 				</FormField>
 
-				<FormField id="jobTitle" label="Job title" required error={fieldErrors.jobTitle}>
+				<FormField id="jobTitle" label="Job title" required error={fieldErrors.jobTitle?.[0]}>
 					<input
 						id="jobTitle"
 						name="jobTitle"
 						type="text"
 						autoComplete="organization-title"
-						maxLength={120}
+						maxLength={160}
 						required
 						aria-required="true"
 						aria-invalid={Boolean(fieldErrors.jobTitle)}
@@ -183,7 +186,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					/>
 				</FormField>
 
-				<FormField id="companySize" label="Company size" required error={fieldErrors.companySize}>
+				<FormField id="companySize" label="Company size" required error={fieldErrors.companySize?.[0]}>
 					<select
 						id="companySize"
 						name="companySize"
@@ -210,7 +213,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					id="biggestChallenge"
 					label="Biggest purchasing challenge"
 					required
-					error={fieldErrors.biggestChallenge}
+					error={fieldErrors.biggestChallenge?.[0]}
 				>
 					<select
 						id="biggestChallenge"
@@ -242,7 +245,7 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					id="annualAddressableSpend"
 					label="Annual addressable spend"
 					description="Optional. Rough estimate is fine, e.g. $2M–$5M."
-					error={fieldErrors.annualAddressableSpend}
+					error={fieldErrors.annualAddressableSpend?.[0]}
 				>
 					<input
 						id="annualAddressableSpend"
@@ -262,13 +265,13 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 					id="procurementMaturity"
 					label="Procurement process maturity"
 					description="Optional. e.g. ad-hoc, centralizing, mature."
-					error={fieldErrors.procurementMaturity}
+					error={fieldErrors.procurementMaturity?.[0]}
 				>
 					<input
 						id="procurementMaturity"
 						name="procurementMaturity"
 						type="text"
-						maxLength={200}
+						maxLength={100}
 						aria-invalid={Boolean(fieldErrors.procurementMaturity)}
 						value={values.procurementMaturity}
 						onChange={(event) => update("procurementMaturity", event.target.value)}
@@ -299,13 +302,13 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 				id="currentSystems"
 				label="Current systems"
 				description="Optional. ERP, P2P, or supplier tools currently in use."
-				error={fieldErrors.currentSystems}
+				error={fieldErrors.currentSystems?.[0]}
 			>
 				<input
 					id="currentSystems"
 					name="currentSystems"
 					type="text"
-					maxLength={300}
+					maxLength={1000}
 					aria-invalid={Boolean(fieldErrors.currentSystems)}
 					value={values.currentSystems}
 					onChange={(event) => update("currentSystems", event.target.value)}
@@ -334,13 +337,13 @@ export function EarlyAccessForm({ onSuccess }: { onSuccess: () => void }) {
 				id="notes"
 				label="Anything else we should know?"
 				description="Optional. Please avoid confidential procurement, supplier, or account information."
-				error={fieldErrors.notes}
+				error={fieldErrors.notes?.[0]}
 			>
 				<textarea
 					id="notes"
 					name="notes"
 					rows={4}
-					maxLength={1000}
+					maxLength={2000}
 					aria-invalid={Boolean(fieldErrors.notes)}
 					value={values.notes}
 					onChange={(event) => update("notes", event.target.value)}

@@ -25,6 +25,24 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	/**
+	 * D1 (procurement early-access leads)
+	 * Until this is provisioned, the procurement API falls back to an
+	 * in-memory repository — fine for local dev, NOT durable, and never
+	 * appropriate for production. To enable D1:
+	 *   1. npx wrangler d1 create procurement-leads
+	 *   2. Paste the returned database_id below and uncomment this block.
+	 *   3. Apply migrations/0001_procurement_early_access.sql (see README).
+	 * https://developers.cloudflare.com/d1/
+	 */
+	// "d1_databases": [
+	// 	{
+	// 		"binding": "DB",
+	// 		"database_name": "procurement-leads",
+	// 		"database_id": "REPLACE_WITH_REAL_DATABASE_ID",
+	// 		"migrations_dir": "migrations"
+	// 	}
+	// ],
+	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
@@ -32,6 +50,12 @@
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 *
+	 * The procurement API requires two secrets in every deployed environment:
+	 *   npx wrangler secret put ADMIN_API_TOKEN
+	 *   npx wrangler secret put LEAD_HASH_SALT
+	 * For local development, set them in .dev.vars instead (see
+	 * .dev.vars.example) — never put real secret values in this file.
 	 */
 	/**
 	 * Static Assets
