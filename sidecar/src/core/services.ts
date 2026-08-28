@@ -38,6 +38,7 @@ import {
 	ShoppingItemsRepo,
 	SnapshotsRepo,
 } from "./repos";
+import { ImportRepo, ProductRepo, PurchaseRepo } from "./productRepos";
 
 export const APPROVAL_TTL_MS = 5 * 60 * 1000;
 
@@ -57,6 +58,9 @@ export class SidecarCore {
 	readonly consent: ConsentRepo;
 	readonly outbox: OutboxRepo;
 	readonly packs: ConfigPacksRepo;
+	readonly products: ProductRepo;
+	readonly purchases: PurchaseRepo;
+	readonly imports: ImportRepo;
 	readonly ledger: Ledger;
 
 	constructor(
@@ -72,6 +76,9 @@ export class SidecarCore {
 		this.consent = new ConsentRepo(db);
 		this.outbox = new OutboxRepo(db);
 		this.packs = new ConfigPacksRepo(db);
+		this.products = new ProductRepo(db, crypto);
+		this.purchases = new PurchaseRepo(db, crypto);
+		this.imports = new ImportRepo(db);
 		this.ledger = new Ledger(db);
 	}
 

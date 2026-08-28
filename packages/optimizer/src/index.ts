@@ -12,3 +12,7 @@ export * from "./coverage";
 export * from "./dedupe";
 export * from "./engine";
 export * from "./actionHarness";
+export * from "./units";
+export * from "./productIdentity";
+export * from "./priceHistory";
+export * from "./importer";

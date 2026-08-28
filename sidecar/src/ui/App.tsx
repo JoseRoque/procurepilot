@@ -9,6 +9,8 @@ import { SidecarCore } from "../core/services";
 import { ExportService, SyncService } from "../core/sync";
 import { ConfigPacksSection } from "./sections/ConfigPacksSection";
 import { ExportSection } from "./sections/ExportSection";
+import { ImportSection } from "./sections/ImportSection";
+import { PriceHistorySection } from "./sections/PriceHistorySection";
 import { LedgerSection } from "./sections/LedgerSection";
 import { PlanHistorySection, TodaysPlanSection } from "./sections/PlanSections";
 import { PreferencesSection } from "./sections/PreferencesSection";
@@ -20,6 +22,8 @@ const SECTIONS = [
 	{ id: "today", label: "Today's plan" },
 	{ id: "shopping", label: "Shopping list" },
 	{ id: "preferences", label: "Preferences & limits" },
+	{ id: "prices", label: "Price history" },
+	{ id: "import", label: "Import history" },
 	{ id: "snapshots", label: "Cart snapshots" },
 	{ id: "history", label: "Plan history" },
 	{ id: "ledger", label: "Action ledger" },
@@ -118,6 +122,8 @@ export function App() {
 				{section === "today" && <TodaysPlanSection ctx={liveCtx} />}
 				{section === "shopping" && <ShoppingListSection ctx={liveCtx} />}
 				{section === "preferences" && <PreferencesSection ctx={liveCtx} />}
+				{section === "prices" && <PriceHistorySection ctx={liveCtx} />}
+				{section === "import" && <ImportSection ctx={liveCtx} />}
 				{section === "snapshots" && <SnapshotsSection ctx={liveCtx} />}
 				{section === "history" && <PlanHistorySection ctx={liveCtx} />}
 				{section === "ledger" && <LedgerSection ctx={liveCtx} />}

@@ -26,6 +26,8 @@ const BRIDGE_DEFAULT_PORT: u16 = 43180;
 const BRIDGE_BODY_LIMIT: usize = 256 * 1024;
 const BRIDGE_RESPONSE_TIMEOUT: Duration = Duration::from_secs(15);
 const MIGRATION_1: &str = include_str!("../migrations/0001_init.sql");
+const MIGRATION_2: &str = include_str!("../migrations/0002_product_intelligence.sql");
+const SCHEMA_VERSION: i64 = 2;
 
 struct DbState {
     conn: Mutex<Connection>,
@@ -115,9 +117,15 @@ fn open_database(app: &tauri::AppHandle) -> Result<DbState, String> {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
+    // Forward-only migrations, each applied once and recorded in user_version.
     if version < 1 {
         conn.execute_batch(MIGRATION_1).map_err(|e| format!("migration 1: {e}"))?;
-        conn.pragma_update(None, "user_version", 1)
+    }
+    if version < 2 {
+        conn.execute_batch(MIGRATION_2).map_err(|e| format!("migration 2: {e}"))?;
+    }
+    if version < SCHEMA_VERSION {
+        conn.pragma_update(None, "user_version", SCHEMA_VERSION)
             .map_err(|e| e.to_string())?;
     }
 
