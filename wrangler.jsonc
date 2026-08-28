@@ -25,29 +25,25 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	/**
-	 * D1 (procurement early-access leads)
-	 * Until this is provisioned, the procurement API falls back to an
-	 * in-memory repository — fine for local dev, NOT durable, and never
-	 * appropriate for production. To enable D1:
-	 *   1. npx wrangler d1 create procurement-leads
-	 *   2. Paste the returned database_id below and uncomment this block.
-	 *   3. Apply BOTH migrations (see README): 0001_procurement_early_access.sql
-	 *      and 0002_purchasing_intelligence.sql.
+	 * D1 — provisioned and active. Backs both the procurement early-access
+	 * leads API and the Purchasing Intelligence API (/api/v1/*).
 	 *
-	 * The Purchasing Intelligence API (/api/v1/*) REQUIRES this binding and
-	 * returns 503 without it. That is expected: the sidecar is fully
-	 * local-first and only touches the API for the optional, opt-in
-	 * redacted-outcome sync and config-pack download.
+	 * Migrations live in ./migrations and must be applied explicitly:
+	 *   npx wrangler d1 execute procurement-leads --remote --file=migrations/<file>.sql
+	 * (swap --remote for --local to target the local dev database)
+	 *
+	 * Without this binding the leads API degrades to a non-durable in-memory
+	 * store and the /api/v1/* endpoints return 503 — see workers/lib/pi/routes.ts.
 	 * https://developers.cloudflare.com/d1/
 	 */
-	// "d1_databases": [
-	// 	{
-	// 		"binding": "DB",
-	// 		"database_name": "procurement-leads",
-	// 		"database_id": "REPLACE_WITH_REAL_DATABASE_ID",
-	// 		"migrations_dir": "migrations"
-	// 	}
-	// ],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "procurement-leads",
+			"database_id": "ab25da15-934e-4821-a8ec-4b4d84a23e1c",
+			"migrations_dir": "migrations"
+		}
+	],
 	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables

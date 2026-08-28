@@ -114,18 +114,32 @@ cd sidecar && npm run build             # sidecar tsc + vite
 cd sidecar/src-tauri && cargo check      # sidecar Rust core
 ```
 
-### D1 migrations
+### D1 (provisioned and live)
 
-The Purchasing Intelligence API requires a D1 binding and returns **503** without one.
-That is expected — the sidecar is fully local-first and only calls the API for the
-optional, opt-in redacted sync and config-pack download.
+D1 database `procurement-leads` is created, bound as `DB` in `wrangler.jsonc`, and both
+migrations are applied to the deployed environment. Early-access leads and all
+`/api/v1/*` data persist durably.
+
+Applying migrations (needed for a fresh local DB, or when adding a new migration):
 
 ```bash
-npx wrangler d1 create procurement-leads          # then paste database_id into wrangler.jsonc
-                                                   # and uncomment the d1_databases block
 npx wrangler d1 execute procurement-leads --local  --file=migrations/0001_procurement_early_access.sql
 npx wrangler d1 execute procurement-leads --local  --file=migrations/0002_purchasing_intelligence.sql
 # swap --local for --remote to apply to the deployed database
+```
+
+Required Worker secrets (set via `npx wrangler secret put <NAME>`; mirror them into a
+gitignored `.dev.vars` for local dev): `ADMIN_API_TOKEN`, `LEAD_HASH_SALT`,
+`CONFIG_PACK_PUBLIC_KEY`.
+
+Without the `DB` binding the leads API silently degrades to a **non-durable in-memory
+store** and `/api/v1/*` returns 503 — so keep the binding in place.
+
+Publishing a configuration pack:
+
+```bash
+node scripts/sign-config-pack.mjs pack.json --key <hex> --out signed.json
+# then insert into configuration_packs + configuration_pack_versions (see migration 0002)
 ```
 
 ### API endpoints (v1)
