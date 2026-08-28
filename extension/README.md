@@ -179,9 +179,6 @@ never a previously saved or completed one.
 
 - `npm run build` succeeds and produces a manifest with exactly `storage`, `activeTab`,
   `scripting`, `sidePanel` — no host permissions, no static content script registration.
-- `npm run dev` (which uses `web-ext` under the hood — the same mechanism as Chrome's "Load
-  unpacked") launched a real Chrome Canary instance with the built extension with no
-  manifest/loading errors reported.
 - `npm run compile` (`tsc --noEmit`, with `noUncheckedIndexedAccess` enabled) is clean.
 - `npm test` — 76/76 passing, covering every rule described above.
 - `grep` across `lib/` and `entrypoints/` confirms zero uses of `fetch`, `XMLHttpRequest`,
@@ -190,10 +187,18 @@ never a previously saved or completed one.
 - `grep` of the content script confirms the only DOM-mutating calls target elements the chip
   itself created — there is no `.click()`, `.submit()`, form-field assignment, or
   `dispatchEvent` call against the host page's own elements anywhere.
-- Interactive click-through (opening the panel, clicking through Demo mode, running a live scan
-  in a loaded window) was **not** independently observed in this session — the available browser
-  automation is scoped to a different Chrome profile than the one `web-ext`/"Load unpacked"
-  launches. Please do a quick manual pass after loading unpacked, per the steps above.
+
+**Not independently verified — a real Chrome platform restriction, not just a tooling gap:**
+current Chrome (confirmed on both Stable and Canary while building this) silently ignores the
+`--load-extension` command-line flag entirely as an anti-malware hardening measure — it no longer
+loads an unpacked extension that way at all, and this also means `npm run dev`'s auto-launch
+(`web-ext`) does not actually load the extension either, despite reporting success. The only
+remaining path is a human clicking **Load unpacked** in the `chrome://extensions` UI and picking
+the directory in the native OS folder picker — Chrome DevTools Protocol has no hook to intercept
+that picker (it isn't a standard `<input type="file">`), so this one step cannot be scripted from
+outside the browser. **After** that manual step, the loaded extension is fully inspectable and
+driveable via CDP like any other page — please do the one-time manual load per the steps above; a
+follow-up automated pass (side panel content, Demo mode, a live scan) can then be run against it.
 
 ## Non-goals for this release
 
