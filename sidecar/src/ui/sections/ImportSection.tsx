@@ -5,6 +5,7 @@ import type {
 	ImportField,
 	ImportPreview,
 	ParsedCsv,
+	QuarantinedHeader,
 } from "../../../../packages/optimizer/src";
 import { ImportService } from "../../core/importService";
 import type { Ctx } from "../App";
@@ -32,6 +33,7 @@ export function ImportSection({ ctx }: { ctx: Ctx }) {
 	const [status, setStatus] = useState("");
 	const [isError, setIsError] = useState(false);
 	const [batches, setBatches] = useState<Awaited<ReturnType<typeof ctx.core.imports.list>>>([]);
+	const [quarantined, setQuarantined] = useState<QuarantinedHeader[]>([]);
 
 	const reloadBatches = () => ctx.core.imports.list().then(setBatches);
 	useEffect(() => {
@@ -45,6 +47,7 @@ export function ImportSection({ ctx }: { ctx: Ctx }) {
 		const parsed = service.parse(text);
 		setCsv(parsed.csv);
 		setMapping(parsed.mapping);
+		setQuarantined(parsed.quarantined);
 		setLabel(file.name);
 		setMerchantId(file.name.toLowerCase().includes("amazon") ? "amazon" : "");
 		setPreview(undefined);
@@ -103,6 +106,28 @@ export function ImportSection({ ctx }: { ctx: Ctx }) {
 				</p>
 				<input type="file" accept=".csv,text/csv" onChange={onFile} />
 			</div>
+
+			{quarantined.length > 0 && (
+				<div className="card">
+					<h3>Columns removed on intake</h3>
+					<p className="muted">
+						These columns were dropped before anything was read from them, and are not
+						available to map. This happens automatically — it is not a setting.
+					</p>
+					<table>
+						<thead><tr><th>Column</th><th>Category</th><th>Why</th></tr></thead>
+						<tbody>
+							{quarantined.map((entry) => (
+								<tr key={entry.header}>
+									<td><code>{entry.header}</code></td>
+									<td><span className="badge amber">{entry.category}</span></td>
+									<td className="muted">{entry.reason}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
 
 			{csv && (
 				<div className="card">

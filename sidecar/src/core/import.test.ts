@@ -196,6 +196,53 @@ describe("import → price intelligence", () => {
 		expect(products[0]?.observationCount).toBe(2);
 	});
 
+	it("strips toxic columns from a delivery export before anything is stored", async () => {
+		// Shaped like a real DoorDash/Uber Eats export, toxic columns included.
+		const deliveryCsv = [
+			"order_date,restaurant_name,item_name,quantity,item_price,delivery_address,dropoff_latitude,dropoff_longitude,delivery_instructions,dasher_name,customer_phone,card_last4",
+			'2026-01-04,Thai Place,Pad Thai,1,$14.50,"42 Elm St Apt 3B, Springfield",42.10412,-72.58991,"Gate code 4521 then buzz 3B",Jamie R.,555-0142,4242',
+			'2026-01-18,Thai Place,Pad Thai,1,$15.50,"42 Elm St Apt 3B, Springfield",42.10412,-72.58991,"Leave at door",Alex T.,555-0142,4242',
+			'2026-02-01,Thai Place,Pad Thai,1,$13.95,"42 Elm St Apt 3B, Springfield",42.10412,-72.58991,"Gate code 4521",Sam P.,555-0142,4242',
+		].join("\n");
+
+		const parsed = service.parse(deliveryCsv);
+
+		// Refused at intake, and reported by name.
+		expect(parsed.quarantined.map((entry) => entry.header).sort()).toEqual([
+			"card_last4",
+			"customer_phone",
+			"dasher_name",
+			"delivery_address",
+			"delivery_instructions",
+			"dropoff_latitude",
+			"dropoff_longitude",
+		]);
+		// Already gone from the parsed rows, before any mapping decision.
+		expect(JSON.stringify(parsed.csv)).not.toMatch(
+			/Elm St|Apt 3B|4521|42\.104|72\.589|Jamie|Alex T|Sam P|555-0142|4242/,
+		);
+
+		await service.commit(
+			service.preview(parsed.csv, parsed.mapping, "doordash", "delivery-history"),
+		);
+
+		// And absent from every table in the database, not merely unmapped.
+		const tables = await core.db.query(
+			"SELECT name FROM sqlite_master WHERE type='table'",
+		);
+		let dump = "";
+		for (const row of tables) {
+			const rows = await core.db.query(`SELECT * FROM "${row.name as string}"`);
+			dump += JSON.stringify(rows);
+		}
+		expect(dump).not.toMatch(/Elm St|Apt 3B|4521|42\.104|72\.589|Jamie|Alex T|Sam P|555-0142/);
+
+		// The legitimate price intelligence still landed.
+		const products = await core.products.listProducts();
+		const padThai = products.find((p) => p.displayName.includes("Pad Thai"));
+		expect(padThai?.observationCount).toBe(3);
+	});
+
 	it("keeps identity derivation consistent between importer and scanner", () => {
 		const fromImport = deriveProductIdentity({ displayName: "Olive oil 500ml" });
 		const fromScan = deriveProductIdentity({ displayName: "Olive oil 500ml" });

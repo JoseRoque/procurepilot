@@ -1,10 +1,13 @@
 import {
+	applyIntakeQuarantine,
 	buildImportPreview,
 	parseCsv,
 	suggestMapping,
+	summarizeQuarantine,
 	type ColumnMapping,
 	type ImportPreview,
 	type ParsedCsv,
+	type QuarantinedHeader,
 } from "../../../packages/optimizer/src";
 import type { SidecarCore } from "./services";
 
@@ -18,9 +21,28 @@ import type { SidecarCore } from "./services";
 export class ImportService {
 	constructor(private readonly core: SidecarCore) {}
 
-	parse(text: string): { csv: ParsedCsv; mapping: ColumnMapping } {
-		const csv = parseCsv(text);
-		return { csv, mapping: suggestMapping(csv.headers) };
+	/**
+	 * Parses and immediately quarantines toxic columns.
+	 *
+	 * The stripping happens here, at the earliest point the data exists in
+	 * memory, rather than at mapping time. Nothing downstream — preview, UI, or
+	 * commit — is ever handed a row containing an address or a gate code, so
+	 * there is no path by which one could be mapped in by mistake.
+	 */
+	parse(text: string): {
+		csv: ParsedCsv;
+		mapping: ColumnMapping;
+		quarantined: QuarantinedHeader[];
+		quarantineSummary: string[];
+	} {
+		const raw = parseCsv(text);
+		const { csv, quarantined } = applyIntakeQuarantine(raw);
+		return {
+			csv,
+			mapping: suggestMapping(csv.headers),
+			quarantined,
+			quarantineSummary: summarizeQuarantine(quarantined),
+		};
 	}
 
 	preview(
