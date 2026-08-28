@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createRequestHandler } from "react-router";
+import { piRoutes } from "./lib/pi/routes";
 import { procurementRoutes } from "./lib/procurement/routes";
 
 declare module "react-router" {
@@ -14,6 +15,7 @@ declare module "react-router" {
 const app = new Hono<{ Bindings: Env }>();
 
 app.route("/api", procurementRoutes);
+app.route("/api", piRoutes);
 
 app.get("*", (c) => {
 	const requestHandler = createRequestHandler(

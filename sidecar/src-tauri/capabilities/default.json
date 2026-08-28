@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: core defaults only. Custom app commands (db, crypto, bridge, export) are app-defined; no plugin permissions are granted.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

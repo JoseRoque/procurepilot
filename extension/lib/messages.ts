@@ -60,6 +60,7 @@ export type ContentScriptMessage =
 
 const SUPPORTED_PLATFORMS = [
 	"generic",
+	"demo_store",
 	"doordash",
 	"ubereats",
 	"instacart",

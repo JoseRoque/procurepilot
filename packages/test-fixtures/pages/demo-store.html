@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Demo Store — Purchasing Intelligence fixture</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f7f7f5; color: #1c1c1c; }
+  header { background: #234; color: #fff; padding: 12px 24px; display: flex; gap: 16px; align-items: center; }
+  main { max-width: 860px; margin: 24px auto; display: grid; grid-template-columns: 1fr 300px; gap: 24px; padding: 0 16px; }
+  .panel { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+  .cart-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; gap: 8px; }
+  .cart-line .qty { display: inline-flex; gap: 4px; align-items: center; }
+  button { cursor: pointer; }
+  .summary-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .offer-banner { background: #fff7e0; border: 1px solid #eeddaa; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+  #demo-offers-panel[hidden] { display: none; }
+  .checkout-disabled { opacity: 0.5; cursor: not-allowed; }
+  .results { margin-top: 8px; }
+  .product-tile { border: 1px solid #ddd; border-radius: 6px; padding: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Demo Store</strong>
+  <span style="font-size:12px;opacity:.8">Sanitized local fixture — no real merchant, no real checkout</span>
+  <span style="flex:1"></span>
+  <input id="demo-search-input" type="search" placeholder="Search products" aria-label="Search products" />
+  <button id="demo-search-button" type="button">Search</button>
+</header>
+<main>
+  <section class="panel cart-container" aria-label="Shopping cart">
+    <h1 style="font-size:18px">Your cart</h1>
+    <div class="offer-banner">30% off orders $35+, up to $12</div>
+    <button id="demo-offers-toggle" type="button">View offers</button>
+    <div id="demo-offers-panel" hidden>
+      <p>Offer terms: 30% off orders of $35 or more, maximum discount $12. Applies to eligible items only.</p>
+    </div>
+
+    <div id="demo-search-results" class="results" aria-live="polite"></div>
+
+    <div id="demo-cart-lines">
+      <div class="cart-line" data-item="Fixture paper towels 6-pack">
+        <span class="line-name">Fixture paper towels 6-pack</span>
+        <span class="qty">
+          <button class="demo-qty-decrease" type="button" aria-label="Decrease quantity">−</button>
+          <span class="qty-value">1</span>
+          <button class="demo-qty-increase" type="button" aria-label="Increase quantity">+</button>
+        </span>
+        <span class="line-price" data-unit-cents="1299">$12.99</span>
+        <button class="demo-remove-button" type="button">Remove</button>
+      </div>
+      <div class="cart-line" data-item="Fixture olive oil 500ml">
+        <span class="line-name">Fixture olive oil 500ml</span>
+        <span class="qty">
+          <button class="demo-qty-decrease" type="button" aria-label="Decrease quantity">−</button>
+          <span class="qty-value">1</span>
+          <button class="demo-qty-increase" type="button" aria-label="Increase quantity">+</button>
+        </span>
+        <span class="line-price" data-unit-cents="1043">$10.43</span>
+        <button class="demo-remove-button" type="button">Remove</button>
+      </div>
+      <div class="cart-line" data-item="Fixture oat cereal">
+        <span class="line-name">Fixture oat cereal</span>
+        <span class="qty">
+          <button class="demo-qty-decrease" type="button" aria-label="Decrease quantity">−</button>
+          <span class="qty-value">2</span>
+          <button class="demo-qty-increase" type="button" aria-label="Increase quantity">+</button>
+        </span>
+        <span class="line-price" data-unit-cents="400">$8.00</span>
+        <button class="demo-remove-button" type="button">Remove</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel order-summary" aria-label="Order summary">
+    <h2 style="font-size:16px">Order summary</h2>
+    <div class="summary-row"><span>Subtotal</span><span id="demo-subtotal">$31.42</span></div>
+    <div class="summary-row"><span>Delivery fee</span><span id="demo-delivery">$1.99</span></div>
+    <div class="summary-row"><span>Service fee</span><span id="demo-service">$3.56</span></div>
+    <div class="summary-row"><span>Tax</span><span id="demo-tax">$2.91</span></div>
+    <div class="summary-row" style="font-weight:600"><span>Total</span><span id="demo-total">$39.88</span></div>
+    <button class="checkout-disabled" type="button" disabled title="This fixture has no checkout by design">Checkout (disabled in fixture)</button>
+  </aside>
+</main>
+<script>
+// Fixture-only interactivity so approved actions have observable, reversible
+// effects. Tax is a flat 8% of subtotal (integer cents, floor) in this fixture.
+(function () {
+  var CATALOG = {
+    "fixture dark chocolate bar": 450,
+    "fixture sparkling water 12-pack": 699,
+    "fixture whole milk 1gal": 449,
+  };
+  function cents(text) { return Math.round(parseFloat(text.replace(/[^0-9.\-]/g, "")) * 100); }
+  function money(c) { return "$" + (c / 100).toFixed(2); }
+  function recompute() {
+    var subtotal = 0;
+    document.querySelectorAll("#demo-cart-lines .cart-line").forEach(function (line) {
+      var qty = parseInt(line.querySelector(".qty-value").textContent, 10);
+      var unit = parseInt(line.querySelector(".line-price").getAttribute("data-unit-cents"), 10);
+      var lineTotal = qty * unit;
+      line.querySelector(".line-price").textContent = money(lineTotal);
+      subtotal += lineTotal;
+    });
+    var delivery = cents(document.getElementById("demo-delivery").textContent);
+    var service = cents(document.getElementById("demo-service").textContent);
+    var tax = Math.floor(subtotal * 8 / 100);
+    document.getElementById("demo-subtotal").textContent = money(subtotal);
+    document.getElementById("demo-tax").textContent = money(tax);
+    document.getElementById("demo-total").textContent = money(subtotal + delivery + service + tax);
+  }
+  document.getElementById("demo-search-input").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") document.getElementById("demo-search-button").click();
+  });
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (target.classList.contains("demo-qty-increase") || target.classList.contains("demo-qty-decrease")) {
+      var value = target.parentElement.querySelector(".qty-value");
+      var next = parseInt(value.textContent, 10) + (target.classList.contains("demo-qty-increase") ? 1 : -1);
+      if (next >= 0) value.textContent = String(next);
+      if (next === 0) target.closest(".cart-line").remove();
+      recompute();
+    }
+    if (target.classList.contains("demo-remove-button")) {
+      target.closest(".cart-line").remove();
+      recompute();
+    }
+    if (target.id === "demo-offers-toggle") {
+      var panel = document.getElementById("demo-offers-panel");
+      panel.hidden = !panel.hidden;
+    }
+    if (target.id === "demo-search-button") {
+      var query = document.getElementById("demo-search-input").value.trim().toLowerCase();
+      var results = document.getElementById("demo-search-results");
+      results.innerHTML = "";
+      if (CATALOG[query] !== undefined) {
+        var tile = document.createElement("div");
+        tile.className = "product-tile";
+        tile.innerHTML = '<span class="tile-name"></span><span class="tile-price"></span>' +
+          '<button class="demo-add-button" type="button">Add to cart</button>';
+        tile.querySelector(".tile-name").textContent = query;
+        tile.querySelector(".tile-price").textContent = money(CATALOG[query]);
+        tile.setAttribute("data-item", query);
+        tile.setAttribute("data-unit-cents", String(CATALOG[query]));
+        results.appendChild(tile);
+      } else {
+        results.textContent = "No results for \"" + query + "\".";
+      }
+    }
+    if (target.classList.contains("demo-add-button")) {
+      var sourceTile = target.closest(".product-tile");
+      var name = sourceTile.getAttribute("data-item");
+      var unitCents = parseInt(sourceTile.getAttribute("data-unit-cents"), 10);
+      var line = document.createElement("div");
+      line.className = "cart-line";
+      line.setAttribute("data-item", name);
+      line.innerHTML = '<span class="line-name"></span>' +
+        '<span class="qty"><button class="demo-qty-decrease" type="button" aria-label="Decrease quantity">−</button>' +
+        '<span class="qty-value">1</span>' +
+        '<button class="demo-qty-increase" type="button" aria-label="Increase quantity">+</button></span>' +
+        '<span class="line-price"></span>' +
+        '<button class="demo-remove-button" type="button">Remove</button>';
+      line.querySelector(".line-name").textContent = name;
+      var price = line.querySelector(".line-price");
+      price.setAttribute("data-unit-cents", String(unitCents));
+      price.textContent = money(unitCents);
+      document.getElementById("demo-cart-lines").appendChild(line);
+      recompute();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+[package]
+name = "sidecar"
+version = "0.1.0"
+description = "Purchasing Intelligence local sidecar — private, local-first purchase planning"
+authors = ["Purchasing Intelligence"]
+edition = "2021"
+
+[lib]
+name = "sidecar_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+tiny_http = "0.12"

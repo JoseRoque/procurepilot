@@ -8,6 +8,7 @@
 
 export type SupportedPlatform =
 	| "generic"
+	| "demo_store"
 	| "doordash"
 	| "ubereats"
 	| "instacart"
@@ -154,6 +155,7 @@ export type CartRecommendation = {
 
 export const PLATFORM_LABELS: Record<SupportedPlatform, string> = {
 	generic: "Generic commerce page",
+	demo_store: "Demo store (fixture)",
 	doordash: "DoorDash",
 	ubereats: "Uber Eats",
 	instacart: "Instacart",

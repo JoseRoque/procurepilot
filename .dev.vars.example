@@ -16,3 +16,13 @@ LEAD_HASH_SALT=replace-with-a-long-random-secret
 
 # Optional: override the default rate limit (5 submissions/hour/fingerprint).
 # LEAD_RATE_LIMIT_MAX_PER_HOUR=5
+
+# ---------------------------------------------------------------------------
+# Purchasing Intelligence (local-first alpha)
+# ---------------------------------------------------------------------------
+
+# Ed25519 PUBLIC key clients use to verify signed configuration packs.
+# The matching PRIVATE key must never live in this repository. For local
+# development the sidecar falls back to the clearly-labeled non-production
+# dev key in packages/test-fixtures/src/devKeys.ts.
+CONFIG_PACK_PUBLIC_KEY=replace-with-ed25519-public-key-hex

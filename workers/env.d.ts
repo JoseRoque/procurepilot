@@ -9,6 +9,8 @@ declare global {
 		ADMIN_API_TOKEN?: string;
 		LEAD_HASH_SALT?: string;
 		LEAD_RATE_LIMIT_MAX_PER_HOUR?: string;
+		/** Public key clients use to verify signed configuration packs. */
+		CONFIG_PACK_PUBLIC_KEY?: string;
 	}
 }
 

@@ -1,5 +1,7 @@
+import { executeAction } from "@/lib/actions/executor";
 import { detectPage } from "@/lib/adapters/registry";
 import type { ContentScriptMessage } from "@/lib/messages";
+import { parsePanelMessage, type ContentToPanelResponse } from "@/lib/messagesPanel";
 import { hasSensitiveInputFields, isSensitivePage } from "@/lib/sensitivePages";
 import type { CartSnapshotDraft, DetectionStatus } from "@/lib/types";
 
@@ -194,6 +196,111 @@ function isCurrentPageSensitive(): boolean {
 	);
 }
 
+/**
+ * Deterministic hash of the visible commerce state, used to bind approvals
+ * to the exact page state they were granted against. Any material change
+ * (cart lines, totals) changes the hash and blocks stale approvals.
+ */
+async function computePageStateHash(url: URL): Promise<string> {
+	const { adapter } = detectPage(url, document);
+	let material = `${url.origin}${url.pathname}`;
+	if (adapter) {
+		try {
+			const draft = await adapter.extract(document, url);
+			material += `|${JSON.stringify(draft.items)}|${draft.subtotal?.cents ?? "?"}|${draft.displayedFinalTotal?.cents ?? "?"}`;
+		} catch {
+			material += "|extract-failed";
+		}
+	}
+	const bytes = new TextEncoder().encode(material);
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(digest))
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("");
+}
+
+function registerPanelListener(chip: () => ScanChip | undefined): void {
+	chrome.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
+		const message = parsePanelMessage(raw);
+		if (!message) return false;
+		const url = new URL(location.href);
+
+		if (message.type === "GET_PAGE_STATE") {
+			(async () => {
+				const { platform, detectionStatus } = detectPage(url, document);
+				const response: ContentToPanelResponse = {
+					type: "PAGE_STATE",
+					payload: {
+						pageOrigin: url.origin,
+						pagePathHint: url.pathname,
+						pageStateHash: await computePageStateHash(url),
+						sensitivePage: isCurrentPageSensitive(),
+						platform,
+						detectionStatus,
+					},
+				};
+				sendResponse(response);
+			})();
+			return true;
+		}
+
+		// EXECUTE_ACTION — the only path that ever touches the page, and only
+		// after the panel recorded an explicit approval in the sidecar.
+		(async () => {
+			const { actionId, actionType, actionPayload, expectedPageOrigin, expectedPageStateHash, selectors } =
+				message.payload;
+
+			const stop = (stopReason: string): ContentToPanelResponse => ({
+				type: "EXECUTE_RESULT",
+				payload: { actionId, outcome: "preconditions_failed", summary: "Stopped before acting.", stopReason },
+			});
+
+			if (isCurrentPageSensitive()) {
+				sendResponse(stop("A login, payment, or account-security page was detected. Stopped for safety."));
+				return;
+			}
+			if (url.origin !== expectedPageOrigin) {
+				sendResponse(stop("The page origin changed since this action was approved."));
+				return;
+			}
+			const currentHash = await computePageStateHash(url);
+			if (expectedPageStateHash && actionType !== "rescan_cart" && currentHash !== expectedPageStateHash) {
+				sendResponse(stop("The page state changed materially since this action was approved."));
+				return;
+			}
+
+			const result = executeAction(document, actionType, actionPayload, selectors);
+			// Give fixture-page click handlers a tick to update the DOM.
+			await new Promise((resolve) => setTimeout(resolve, 150));
+			const postActionPageStateHash = await computePageStateHash(url);
+
+			if (actionType === "rescan_cart" && result.outcome === "succeeded") {
+				await runScan(url, chip());
+			}
+
+			const response: ContentToPanelResponse = {
+				type: "EXECUTE_RESULT",
+				payload: {
+					actionId,
+					outcome: result.outcome,
+					summary: result.summary,
+					stopReason: "stopReason" in result ? result.stopReason : undefined,
+					postActionPageStateHash,
+				},
+			};
+			sendResponse(response);
+		})();
+		return true;
+	});
+}
+
+declare global {
+	interface Window {
+		__piContentScriptActive?: boolean;
+		__piChip?: ScanChip;
+	}
+}
+
 export default defineUnlistedScript(() => {
 	const url = new URL(location.href);
 
@@ -214,7 +321,17 @@ export default defineUnlistedScript(() => {
 		return;
 	}
 
+	// Re-injection (a second user-initiated scan) reuses the live instance and
+	// just re-scans, so panel listeners are never registered twice.
+	if (window.__piContentScriptActive) {
+		runScan(url, window.__piChip).catch(() => {});
+		return;
+	}
+	window.__piContentScriptActive = true;
+
 	const chip = new ScanChip();
+	window.__piChip = chip;
+	registerPanelListener(() => window.__piChip);
 	runScan(url, chip).catch(() => {
 		chip.setState("unavailable");
 	});
