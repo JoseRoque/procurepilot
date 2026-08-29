@@ -4,6 +4,7 @@ import {
 	parseExtensionMessage,
 	type ExtensionMessage,
 } from "@/lib/messages";
+import { describeInjectionFailure, evaluateScanEligibility } from "@/lib/scanEligibility";
 import { completeCartSnapshot } from "@/lib/snapshotFactory";
 import { cartSnapshotRepository } from "@/lib/storage/db";
 import { getInstallMetadata, getPreferences, setInstallMetadata, setLatestScan } from "@/lib/storage/settings";
@@ -38,19 +39,37 @@ async function handleScanCurrentPage(payload: { tabId?: number }): Promise<void>
 		return;
 	}
 
+	const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+	const eligibility = evaluateScanEligibility(tab?.url);
+	if (eligibility.kind === "restricted") {
+		broadcast({ type: "CART_SCAN_FAILED", payload: { tabId, reason: eligibility.reason } });
+		return;
+	}
+
+	// Checked before injecting so a missing grant is reported as something the
+	// user can fix, with the origin named, rather than as an opaque failure.
+	// The request itself must come from the side panel: permissions.request()
+	// needs a user gesture, and a service worker has none.
+	const granted = await chrome.permissions
+		.contains({ origins: [eligibility.originPattern] })
+		.catch(() => false);
+	if (!granted) {
+		broadcast({
+			type: "CART_SCAN_PERMISSION_REQUIRED",
+			payload: { tabId, origin: eligibility.origin, originPattern: eligibility.originPattern },
+		});
+		return;
+	}
+
 	try {
 		await chrome.scripting.executeScript({
 			target: { tabId },
 			files: [CONTENT_SCRIPT_FILE],
 		});
-	} catch {
+	} catch (error) {
 		broadcast({
 			type: "CART_SCAN_FAILED",
-			payload: {
-				tabId,
-				reason:
-					"This page can't be scanned by an extension (for example, the Chrome Web Store or an internal browser page).",
-			},
+			payload: { tabId, reason: describeInjectionFailure(error, eligibility.origin) },
 		});
 	}
 }

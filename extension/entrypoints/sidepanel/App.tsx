@@ -27,7 +27,7 @@ export function App() {
 	const [activeTab, setActiveTab] = useState<Tab>("home");
 	const [showWelcome, setShowWelcome] = useState(false);
 
-	const { state: scanState, startScan } = useScanState();
+	const { state: scanState, startScan, grantAndScan } = useScanState();
 	const { preferences, updatePreferences } = usePreferences();
 	const savedSnapshots = useSavedSnapshots();
 	const [saveConfirmation, setSaveConfirmation] = useState<string | undefined>();
@@ -81,6 +81,28 @@ export function App() {
 				{activeTab === "home" ? (
 					<>
 						<CurrentPage scanState={scanState} onScan={startScan} />
+
+						{scanState.phase === "needs_permission" ? (
+							<div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-slate-700">
+								<p className="font-medium text-slate-900">Allow scanning on this site?</p>
+								<p className="mt-1">
+									To read the cart on{" "}
+									<span className="font-medium break-all">{scanState.origin}</span>, this extension
+									needs your permission for that site. It is asked once per site and you can remove
+									it at any time from Chrome's extension settings.
+								</p>
+								<p className="mt-1 text-xs text-slate-500">
+									Page contents are read only when you press Scan, and stay on this device.
+								</p>
+								<button
+									type="button"
+									onClick={() => grantAndScan(scanState.originPattern)}
+									className="mt-3 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+								>
+									Allow and scan
+								</button>
+							</div>
+						) : null}
 
 						{scanState.phase === "failed" ? (
 							<div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">

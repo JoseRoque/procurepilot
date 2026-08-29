@@ -7,6 +7,7 @@ export type ScanUiState =
 	| { phase: "idle" }
 	| { phase: "scanning"; platform?: SupportedPlatform; detectionStatus?: DetectionStatus }
 	| { phase: "complete"; snapshot: CartSnapshot; recommendation: CartRecommendation }
+	| { phase: "needs_permission"; origin: string; originPattern: string }
 	| { phase: "failed"; reason: string };
 
 type LatestScanRecord = { snapshot: CartSnapshot; recommendation: CartRecommendation };
@@ -46,6 +47,13 @@ export function useScanState() {
 						recommendation: message.payload.recommendation,
 					});
 					break;
+				case "CART_SCAN_PERMISSION_REQUIRED":
+					setState({
+						phase: "needs_permission",
+						origin: message.payload.origin,
+						originPattern: message.payload.originPattern,
+					});
+					break;
 				case "CART_SCAN_FAILED":
 					setState({ phase: "failed", reason: message.payload.reason });
 					break;
@@ -65,9 +73,39 @@ export function useScanState() {
 		});
 	}, []);
 
+	/**
+	 * Asks Chrome for access to one origin, then scans.
+	 *
+	 * Must run here rather than in the service worker: permissions.request()
+	 * requires a user gesture, and this call sits directly under the click
+	 * handler so the gesture is still active. Any await before it would
+	 * consume the gesture and Chrome would reject the request.
+	 */
+	const grantAndScan = useCallback((originPattern: string) => {
+		chrome.permissions
+			.request({ origins: [originPattern] })
+			.then((granted) => {
+				if (!granted) {
+					setState({
+						phase: "failed",
+						reason: "Access was not granted, so this page was not read. You can grant it next time you scan.",
+					});
+					return;
+				}
+				setState({ phase: "scanning" });
+				return chrome.runtime.sendMessage({ type: "SCAN_CURRENT_PAGE", payload: {} });
+			})
+			.catch(() => {
+				setState({
+					phase: "failed",
+					reason: "Chrome refused the permission prompt. Try clicking Scan again.",
+				});
+			});
+	}, []);
+
 	const clearScan = useCallback(() => {
 		setState({ phase: "idle" });
 	}, []);
 
-	return { state, startScan, clearScan, setState };
+	return { state, startScan, grantAndScan, clearScan, setState };
 }

@@ -40,8 +40,23 @@ export type CartScanFailedMessage = {
 	};
 };
 
+/**
+ * The page is scannable, but this origin has not been granted yet. Carries the
+ * origin so the side panel can request exactly that one site — the request
+ * itself needs a user gesture, which a service worker does not have.
+ */
+export type CartScanPermissionRequiredMessage = {
+	type: "CART_SCAN_PERMISSION_REQUIRED";
+	payload: {
+		tabId?: number;
+		origin: string;
+		originPattern: string;
+	};
+};
+
 export type ExtensionMessage =
 	| ScanCurrentPageMessage
+	| CartScanPermissionRequiredMessage
 	| PageDetectionResultMessage
 	| CartSnapshotExtractedMessage
 	| CartScanCompleteMessage
@@ -196,6 +211,14 @@ const extensionMessageSchema = z.discriminatedUnion("type", [
 		payload: z.object({
 			tabId: z.number().int().optional(),
 			reason: z.string(),
+		}),
+	}),
+	z.object({
+		type: z.literal("CART_SCAN_PERMISSION_REQUIRED"),
+		payload: z.object({
+			tabId: z.number().int().optional(),
+			origin: z.string(),
+			originPattern: z.string(),
 		}),
 	}),
 ]);
