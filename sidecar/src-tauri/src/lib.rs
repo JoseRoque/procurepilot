@@ -129,6 +129,20 @@ fn open_database(app: &tauri::AppHandle) -> Result<DbState, String> {
             .map_err(|e| e.to_string())?;
     }
 
+    // local_profile mirrors the version for the UI and bridge, which read
+    // through the SQL abstraction rather than issuing PRAGMAs. Left un-synced
+    // it reports a stale version forever, which would silently defeat the
+    // minimum-version gating on configuration packs.
+    //
+    // Deliberately unconditional: databases migrated before this sync existed
+    // already have the correct user_version, so gating it on `version <
+    // SCHEMA_VERSION` would never repair them. The write is idempotent.
+    conn.execute(
+        "UPDATE local_profile SET schema_version = ?1 WHERE schema_version <> ?1",
+        rusqlite::params![SCHEMA_VERSION],
+    )
+    .map_err(|e| format!("schema version sync: {e}"))?;
+
     Ok(DbState {
         conn: Mutex::new(conn),
         db_path: path.to_string_lossy().to_string(),

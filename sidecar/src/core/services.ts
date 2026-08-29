@@ -82,6 +82,18 @@ export class SidecarCore {
 		this.ledger = new Ledger(db);
 	}
 
+	/**
+	 * The applied local schema version, read from the database rather than
+	 * assumed. The migration runner keeps this in step with PRAGMA
+	 * user_version; reporting a constant here would misstate compatibility to
+	 * anything that gates on it.
+	 */
+	async schemaVersion(): Promise<number> {
+		const rows = await this.db.query("SELECT schema_version FROM local_profile LIMIT 1");
+		const value = rows[0]?.schema_version;
+		return typeof value === "number" ? value : Number(value ?? 0);
+	}
+
 	// ------------------------------------------------------------- consent
 
 	async privacyMode(): Promise<PrivacyMode> {

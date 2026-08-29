@@ -243,6 +243,14 @@ describe("import → price intelligence", () => {
 		expect(padThai?.observationCount).toBe(3);
 	});
 
+	it("reports the applied schema version from the database, not a constant", async () => {
+		// Regression: the bridge previously returned a hardcoded 1, so a
+		// migrated database still advertised the pre-migration schema.
+		expect(await core.schemaVersion()).toBe(2);
+		await core.db.execute("UPDATE local_profile SET schema_version = 7");
+		expect(await core.schemaVersion()).toBe(7);
+	});
+
 	it("keeps identity derivation consistent between importer and scanner", () => {
 		const fromImport = deriveProductIdentity({ displayName: "Olive oil 500ml" });
 		const fromScan = deriveProductIdentity({ displayName: "Olive oil 500ml" });

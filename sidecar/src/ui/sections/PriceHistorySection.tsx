@@ -18,7 +18,7 @@ export function PriceHistorySection({ ctx }: { ctx: Ctx }) {
 	const [products, setProducts] = useState<ProductRow[]>([]);
 	const [selected, setSelected] = useState<ProductRow>();
 	const [assessment, setAssessment] = useState<PriceAssessment>();
-	const [interval, setInterval] = useState<ConsumptionInterval>();
+	const [consumption, setConsumption] = useState<ConsumptionInterval>();
 	const [points, setPoints] = useState<Awaited<ReturnType<Ctx["core"]["products"]["pricePoints"]>>>([]);
 	const [filter, setFilter] = useState("");
 
@@ -35,14 +35,16 @@ export function PriceHistorySection({ ctx }: { ctx: Ctx }) {
 				? await ctx.core.products.assessCurrentPrice(product.productKey, product.lastPriceCents)
 				: undefined,
 		);
-		setInterval(await ctx.core.purchases.consumptionInterval(product.productKey));
+		setConsumption(await ctx.core.purchases.consumptionInterval(product.productKey));
 	}
 
 	const visible = products.filter((product) =>
 		filter.trim() ? product.displayName.toLowerCase().includes(filter.toLowerCase()) : true,
 	);
 
-	const repurchase = interval ? evaluateRepurchase(interval, new Date().toISOString()) : undefined;
+	const repurchase = consumption
+		? evaluateRepurchase(consumption, new Date().toISOString())
+		: undefined;
 
 	return (
 		<div>

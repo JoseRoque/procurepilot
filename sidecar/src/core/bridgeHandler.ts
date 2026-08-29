@@ -73,7 +73,7 @@ async function handle(
 				payload: {
 					connected: true,
 					sidecarVersion: core.config.appVersion,
-					schemaVersion: 1,
+					schemaVersion: await core.schemaVersion(),
 					privacyMode: await core.privacyMode(),
 					activeConfigPackVersion: activePack?.version,
 				},
