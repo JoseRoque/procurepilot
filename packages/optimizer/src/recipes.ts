@@ -46,8 +46,47 @@ export type CartFacts = {
 function normalize(value: string): string {
 	return value
 		.toLowerCase()
+		// Split digits from letters so "16oz" and "16 oz" agree.
+		.replace(/(\d)([a-z])/g, "$1 $2")
+		.replace(/([a-z])(\d)/g, "$1 $2")
 		.replace(/[^a-z0-9]+/g, " ")
 		.trim();
+}
+
+function tokens(value: string): Set<string> {
+	return new Set(normalize(value).split(" ").filter(Boolean));
+}
+
+/**
+ * Loose product-name match.
+ *
+ * Substring comparison alone fails on the ordinary case: a recipe saying
+ * "Barilla Spaghetti 16oz" does not substring-match a listing called
+ * "Barilla Spaghetti Pasta, 16 oz", because of one inserted word and a
+ * space. Reporting that as missing sends the user hunting for something
+ * already in their cart.
+ *
+ * Token containment handles it while still rejecting genuinely different
+ * products — "Barilla Penne 16oz" does not match, since "spaghetti" is
+ * absent. Loose matches remain safe because an item the deal depends on is
+ * reported as "substituted" rather than "present" unless a product code
+ * confirms it.
+ */
+function namesMatch(a: string, b: string): boolean {
+	const left = normalize(a);
+	const right = normalize(b);
+	if (left === right || left.includes(right) || right.includes(left)) return true;
+
+	const leftTokens = tokens(a);
+	const rightTokens = tokens(b);
+	if (leftTokens.size === 0 || rightTokens.size === 0) return false;
+
+	const [smaller, larger] =
+		leftTokens.size <= rightTokens.size ? [leftTokens, rightTokens] : [rightTokens, leftTokens];
+	for (const token of smaller) {
+		if (!larger.has(token)) return false;
+	}
+	return true;
 }
 
 function formatCentsLocal(cents: number): string {
@@ -72,13 +111,9 @@ function matchItem(item: RecipeItem, lines: CartLineFact[]): RecipeItemMatch {
 			(item.productKey && line.productKey === item.productKey),
 	);
 
-	const wanted = normalize(item.name);
 	const byName = byIdentity
 		? undefined
-		: lines.find((line) => {
-				const actual = normalize(line.displayName);
-				return actual === wanted || actual.includes(wanted) || wanted.includes(actual);
-			});
+		: lines.find((line) => namesMatch(item.name, line.displayName));
 
 	const matched = byIdentity ?? byName;
 

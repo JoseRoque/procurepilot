@@ -231,3 +231,31 @@ describe("customization impact", () => {
 		expect(diff.stillSafe).toBe(true);
 	});
 });
+
+describe("product name matching", () => {
+	function withNames(recipeName: string, cartName: string) {
+		return evaluateRecipe(
+			recipe({ items: [{ name: recipeName, quantity: 1, requiredExact: false }] }),
+			cart({ lines: [{ displayName: cartName, quantity: 1 }] }),
+			NOW,
+		).items[0]?.status;
+	}
+
+	it("matches across an inserted word and inconsistent unit spacing", () => {
+		// Regression: this exact pair reported "missing" while the item was
+		// plainly in the cart.
+		expect(withNames("Barilla Spaghetti 16oz", "Barilla Spaghetti Pasta, 16 oz")).toBe("present");
+	});
+
+	it("treats 16oz and 16 oz as the same size", () => {
+		expect(withNames("Olive Oil 500ml", "Olive Oil, 500 mL")).toBe("present");
+	});
+
+	it("still refuses a genuinely different product", () => {
+		expect(withNames("Barilla Spaghetti 16oz", "Barilla Penne 16oz")).toBe("missing");
+	});
+
+	it("does not match on brand alone", () => {
+		expect(withNames("Barilla Spaghetti", "Barilla Lasagne Sheets")).toBe("missing");
+	});
+});

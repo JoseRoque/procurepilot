@@ -6,16 +6,18 @@ import { CurrentPage } from "./views/CurrentPage";
 import { Demo } from "./views/Demo";
 import { PlannerTab } from "./views/PlannerTab";
 import { Preferences } from "./views/Preferences";
+import { RecipesTab } from "./views/RecipesTab";
 import { Recommendation } from "./views/Recommendation";
 import { SavedComparisons } from "./views/SavedComparisons";
 import { ScanResult } from "./views/ScanResult";
 import { Welcome } from "./views/Welcome";
 
-type Tab = "home" | "planner" | "saved" | "preferences" | "demo";
+type Tab = "home" | "planner" | "recipes" | "saved" | "preferences" | "demo";
 
 const TABS: { id: Tab; label: string }[] = [
 	{ id: "home", label: "Home" },
 	{ id: "planner", label: "Planner" },
+	{ id: "recipes", label: "Deals" },
 	{ id: "saved", label: "Saved" },
 	{ id: "preferences", label: "Preferences" },
 	{ id: "demo", label: "Demo" },
@@ -135,6 +137,10 @@ export function App() {
 						preferences={preferences}
 						onRescan={startScan}
 					/>
+				) : null}
+
+				{activeTab === "recipes" ? (
+					<RecipesTab snapshot={scanState.phase === "complete" ? scanState.snapshot : undefined} />
 				) : null}
 
 				{activeTab === "saved" ? (
