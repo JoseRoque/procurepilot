@@ -1,10 +1,12 @@
 import type {
 	DealRecipe,
 	DealTerm,
+	RecipeApplicability,
 	RecipeEvaluation,
 	RecipeItem,
 	RecipeItemMatch,
 	TermEvaluation,
+	UserDealContext,
 } from "../../domain/src";
 
 /**
@@ -320,6 +322,192 @@ export function evaluateRecipe(
 		allTermsMet,
 		requiresUserAction,
 		warnings,
+		explanation,
+	};
+}
+
+/* ------------------------------------------------------------------ *
+ * Applicability pre-screen
+ * ------------------------------------------------------------------ */
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Answers "is this deal even for me?" before any cart exists.
+ *
+ * Written because the common complaint is discovering a deal does not apply
+ * *after* assembling the cart — at checkout, having done all the work. Almost
+ * everything that disqualifies a person is knowable up front.
+ *
+ * The distinction that matters is between conditions that are **impossible**
+ * and conditions that are merely **unmet so far**. A spend floor is not a
+ * blocker — it is the shape of the work. An expired deal or a membership the
+ * user has said they do not hold is a blocker, and nothing about the cart can
+ * change that. Collapsing the two would either hide usable deals or waste the
+ * user's time on unusable ones.
+ *
+ * Unknown membership is never assumed in either direction: it returns
+ * needs_info so the user is asked, rather than being shown a deal that will
+ * fail or having a usable one hidden.
+ */
+export function assessApplicability(
+	recipe: DealRecipe,
+	context: UserDealContext,
+	now: string = new Date().toISOString(),
+): RecipeApplicability {
+	const blockers: TermEvaluation[] = [];
+	const requiresConfirmation: TermEvaluation[] = [];
+	const requirements: TermEvaluation[] = [];
+	const explanation: string[] = [];
+
+	const held = new Set(context.memberships.map((name) => name.toLowerCase()));
+	const notHeld = new Set((context.excludedMemberships ?? []).map((name) => name.toLowerCase()));
+
+	for (const term of recipe.terms) {
+		switch (term.kind) {
+			case "date_window": {
+				if (term.until && now > term.until) {
+					blockers.push({
+						term,
+						status: "not_met",
+						explanation: `This deal expired on ${term.until.slice(0, 10)}.`,
+					});
+				} else if (term.from && now < term.from) {
+					requiresConfirmation.push({
+						term,
+						status: "not_met",
+						explanation: `This deal does not start until ${term.from.slice(0, 10)}.`,
+					});
+				}
+				break;
+			}
+
+			case "member_only": {
+				const program = term.programName.toLowerCase();
+				if (notHeld.has(program)) {
+					blockers.push({
+						term,
+						status: "not_met",
+						explanation: `This deal requires ${term.programName}, which you have said you do not have.`,
+					});
+				} else if (held.has(program)) {
+					requirements.push({
+						term,
+						status: "met",
+						explanation: `Requires ${term.programName}, which you have said you hold.`,
+					});
+				} else {
+					requiresConfirmation.push({
+						term,
+						status: "unknown",
+						explanation: `This deal requires ${term.programName}. Confirm whether you have it — this app cannot check.`,
+					});
+				}
+				break;
+			}
+
+			case "min_spend": {
+				const overBudget =
+					context.maxSpendCents !== undefined && term.cents > context.maxSpendCents;
+				requirements.push({
+					term,
+					status: "not_met",
+					explanation: overBudget
+						? `Needs a subtotal of ${formatCentsLocal(term.cents)}, which is above the ${formatCentsLocal(context.maxSpendCents!)} limit you set.`
+						: `Needs a subtotal of at least ${formatCentsLocal(term.cents)}.`,
+				});
+				break;
+			}
+
+			case "buy_n_of":
+				requirements.push({
+					term,
+					status: "not_met",
+					explanation: `Needs ${term.n} × ${term.label}.`,
+				});
+				break;
+
+			case "requires_coupon_clip":
+				requiresConfirmation.push({
+					term,
+					status: "needs_user_action",
+					explanation: `You will need to clip "${term.label}" on the merchant's site yourself.`,
+				});
+				break;
+
+			case "limit_per_customer":
+				requirements.push({
+					term,
+					status: "met",
+					explanation: `The merchant limits this to ${term.n} per customer.`,
+				});
+				break;
+
+			case "manual_review":
+				requiresConfirmation.push({
+					term,
+					status: "needs_user_action",
+					explanation: `Check this yourself: "${term.text}"`,
+				});
+				break;
+		}
+	}
+
+	// Recipe-level expiry is a blocker on the same footing as an expired term.
+	if (recipe.validUntil && now > recipe.validUntil) {
+		blockers.push({
+			term: { kind: "date_window", until: recipe.validUntil },
+			status: "not_met",
+			explanation: `This recipe expired on ${recipe.validUntil.slice(0, 10)}.`,
+		});
+	}
+
+	let expiresInDays: number | undefined;
+	const deadline =
+		recipe.validUntil ??
+		recipe.terms.find((term): term is Extract<DealTerm, { kind: "date_window" }> =>
+			term.kind === "date_window" && Boolean(term.until),
+		)?.until;
+	if (deadline && now <= deadline) {
+		expiresInDays = Math.floor((Date.parse(deadline) - Date.parse(now)) / MS_PER_DAY);
+	}
+
+	const verdict: RecipeApplicability["verdict"] =
+		blockers.length > 0
+			? "not_applicable"
+			: requiresConfirmation.length > 0
+				? "needs_info"
+				: "likely_applicable";
+
+	if (verdict === "not_applicable") {
+		explanation.push("This deal cannot work for you as things stand.");
+		for (const blocker of blockers) explanation.push(blocker.explanation);
+	} else if (verdict === "needs_info") {
+		explanation.push(
+			`Nothing rules this out, but ${requiresConfirmation.length} thing(s) need you to confirm or act.`,
+		);
+	} else {
+		explanation.push("Nothing known rules this out. What remains is building the cart.");
+	}
+
+	if (requirements.length > 0 && verdict !== "not_applicable") {
+		explanation.push(`To qualify: ${requirements.map((entry) => entry.explanation).join(" ")}`);
+	}
+	if (expiresInDays !== undefined && expiresInDays <= 3) {
+		explanation.push(
+			expiresInDays === 0
+				? "This is the last day of the deal."
+				: `Only ${expiresInDays} day(s) left on this deal.`,
+		);
+	}
+
+	return {
+		recipeId: recipe.recipeId,
+		verdict,
+		blockers,
+		requiresConfirmation,
+		requirements,
+		expiresInDays,
 		explanation,
 	};
 }

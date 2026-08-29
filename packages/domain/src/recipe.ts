@@ -87,6 +87,48 @@ export type DealRecipe = {
 };
 
 /* ------------------------------------------------------------------ *
+ * Applicability — answering "is this even for me?" before building a cart
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the user has told us about themselves, for pre-screening deals.
+ *
+ * Supplied by the user, never observed. Memberships in particular are not
+ * detected from the merchant session — that session is private browser state
+ * this product does not read.
+ */
+export type UserDealContext = {
+	/** Loyalty/membership programs the user has said they hold. */
+	memberships: string[];
+	/** Programs the user has explicitly said they do NOT hold. */
+	excludedMemberships?: string[];
+	/** Optional ceiling; a deal needing more spend is flagged, not hidden. */
+	maxSpendCents?: number;
+};
+
+export type ApplicabilityVerdict =
+	/** Nothing known disqualifies this; the remaining work is building the cart. */
+	| "likely_applicable"
+	/** A condition rules this out no matter what cart is built. */
+	| "not_applicable"
+	/** Cannot tell without something only the user can confirm. */
+	| "needs_info";
+
+export type RecipeApplicability = {
+	recipeId: string;
+	verdict: ApplicabilityVerdict;
+	/** Conditions that disqualify regardless of cart contents. */
+	blockers: TermEvaluation[];
+	/** Conditions the user must confirm or act on before this can be judged. */
+	requiresConfirmation: TermEvaluation[];
+	/** Conditions that are achievable but shape the cart, e.g. a spend floor. */
+	requirements: TermEvaluation[];
+	/** Days until expiry when known and still in the future. */
+	expiresInDays?: number;
+	explanation: string[];
+};
+
+/* ------------------------------------------------------------------ *
  * Evaluation results
  * ------------------------------------------------------------------ */
 
