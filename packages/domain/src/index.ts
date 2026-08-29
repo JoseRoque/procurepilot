@@ -3,3 +3,4 @@ export * from "./preferences";
 export * from "./planning";
 export * from "./consent";
 export * from "./product";
+export * from "./recipe";
